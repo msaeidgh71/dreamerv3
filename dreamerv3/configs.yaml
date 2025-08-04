@@ -4,7 +4,7 @@ defaults:
   replica: 0
   replicas: 1
   method: name
-  task: crafter
+  task: dummy_disc
   seed: 0
   script: eval_only
   batch_size: 16
