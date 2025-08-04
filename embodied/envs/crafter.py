@@ -7,7 +7,7 @@ import numpy as np
 
 
 class Crafter(embodied.Env):
-
+  info_callback=None
   def __init__(self, task, size=(64, 64), logs=False, logdir=None, seed=None):
     assert task in ('reward', 'noreward')
     self._env = crafter.Env(size=size, reward=(task == 'reward'), seed=seed)
@@ -20,6 +20,8 @@ class Crafter(embodied.Env):
     self._achievements = crafter.constants.achievements.copy()
     self._done = True
 
+  def set_info_func(args):
+    Crafter.info_callback = args
   @property
   def obs_space(self):
     spaces = {
@@ -72,6 +74,7 @@ class Crafter(embodied.Env):
   def _obs(
       self, image, reward, info,
       is_first=False, is_last=False, is_terminal=False):
+    Crafter.info_callback(info)
     obs = dict(
         image=image,
         reward=np.float32(reward),
