@@ -1,12 +1,12 @@
 defaults:
 
-  logdir: ~/logdir/{timestamp}
+  logdir: /content/
   replica: 0
   replicas: 1
   method: name
-  task: dummy_disc
+  task: crafter
   seed: 0
-  script: train
+  script: eval_only
   batch_size: 16
   batch_length: 64
   report_length: 32
@@ -56,7 +56,7 @@ defaults:
     eval_envs: 4
     eval_eps: 1
     report_batches: 1
-    from_checkpoint: ''
+    from_checkpoint: '/content'
     episode_timeout: 180
     actor_addr: 'localhost:{auto}'
     replay_addr: 'localhost:{auto}'
