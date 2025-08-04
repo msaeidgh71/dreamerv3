@@ -125,6 +125,16 @@ class Agent(embodied.jax.Agent):
     policy = self.pol(self.feat2tensor(feat), bdims=1)
     act = sample(policy)
     out = {}
+
+    # MODIFICATION START: Check for .logits and compute probabilities with softmax.
+    for name, dist in policy.items():
+        if hasattr(dist, 'logits'):
+            # This will work for Categorical distributions.
+            out[f'{name}_probs'] = jax.nn.softmax(dist.logits, -1)
+        else:
+            print(f"========================== No 'logits' found in dist '{name}'! ==========================")
+    # MODIFICATION END
+
     out['finite'] = elements.tree.flatdict(jax.tree.map(
         lambda x: jnp.isfinite(x).all(range(1, x.ndim)),
         dict(obs=obs, carry=carry, tokens=tokens, feat=feat, act=act)))
