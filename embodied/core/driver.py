@@ -7,7 +7,7 @@ import portal
 
 
 class Driver:
-
+  mfunc = None
   def __init__(self, make_env_fns, parallel=True, **kwargs):
     assert len(make_env_fns) >= 1
     self.parallel = parallel
@@ -24,14 +24,25 @@ class Driver:
           for i, (fn, pipe) in enumerate(zip(fns, pipes))]
       self.pipes[0].send(('act_space',))
       self.act_space = self._receive(self.pipes[0])
+      # MODIFICATION START: Fetch the action names from the remote environment.
+      self.pipes[0].send(('get_attr', 'discrete_action_names'))
+      self.action_names = self._receive(self.pipes[0]) or {}
+      # MODIFICATION END
     else:
       self.envs = [fn() for fn in make_env_fns]
       self.act_space = self.envs[0].act_space
+      # MODIFICATION START: Get action names from the local environment.
+      self.action_names = getattr(self.envs[0], 'discrete_action_names', {})
+      # MODIFICATION END
     self.callbacks = []
     self.acts = None
     self.carry = None
     self.reset()
 
+  def set_callback(arg):
+    Driver.mfunc = arg
+    print(Driver.mfunc)
+    return "ok"
   def reset(self, init_policy=None):
     self.acts = {
         k: np.zeros((self.length,) + v.shape, v.dtype)
@@ -55,9 +66,12 @@ class Driver:
 
   def _step(self, policy, step, episode):
     acts = self.acts
+    acts = Driver.mfunc(acts);
     assert all(len(x) == self.length for x in acts.values())
     assert all(isinstance(v, np.ndarray) for v in acts.values())
     acts = [{k: v[i] for k, v in acts.items()} for i in range(self.length)]
+    
+    
     if self.parallel:
       [pipe.send(('step', act)) for pipe, act in zip(self.pipes, acts)]
       obs = [self._receive(pipe) for pipe in self.pipes]
@@ -68,12 +82,36 @@ class Driver:
     obs = {k: v for k, v in obs.items() if not k.startswith('log/')}
     assert all(len(x) == self.length for x in obs.values()), obs
     self.carry, acts, outs = policy(self.carry, obs, **self.kwargs)
+    
+    # MODIFICATION START: detailed printing logic.
+    prob_keys = [k for k in outs if k.endswith('_probs')]
+    if prob_keys:
+        print("\n--- Model Action Probabilities ---")
+        for key in prob_keys:
+            action_name = key.replace('_probs', '')
+            probabilities_np = np.array(outs[key])
+            num_envs = probabilities_np.shape[0]
+            
+            # Get the list of names for this specific action, or use indices as a fallback.
+            names = self.action_names.get(action_name, [str(i) for i in range(probabilities_np.shape[1])])
+
+            print(f"  Action '{action_name}':")
+            for i in range(num_envs):
+                # Pair names with probabilities and format them.
+                named_probs = [f"{name}:{prob:.2f}" for name, prob in zip(names, probabilities_np[i])]
+                print(f"    Env {i}: {{{', '.join(named_probs)}}}")
+        print("--------------------------------\n")
+    # MODIFICATION END
+    
     assert all(k not in acts for k in outs), (
         list(outs.keys()), list(acts.keys()))
     if obs['is_last'].any():
       mask = ~obs['is_last']
       acts = {k: self._mask(v, mask) for k, v in acts.items()}
-    self.acts = {**acts, 'reset': obs['is_last'].copy()}
+    self.acts = {**acts, 'reset': obs['is_last'].copy()
+    ,'_probs':prob_keys,
+    '_mobs':obs
+    }
     trans = {**obs, **acts, **outs, **logs}
     for i in range(self.length):
       trn = elements.tree.map(lambda x: x[i], trans)
@@ -123,6 +161,12 @@ class Driver:
         elif msg == 'act_space':
           assert len(args) == 0
           pipe.send(('result', env.act_space))
+        # MODIFICATION START: Add a handler to get arbitrary attributes from the env.
+        elif msg == 'get_attr':
+            attr_name = args[0]
+            value = getattr(env, attr_name, None)
+            pipe.send(('result', value))
+        # MODIFICATION END
         else:
           raise ValueError(f'Invalid message {msg}')
     except ConnectionResetError:
