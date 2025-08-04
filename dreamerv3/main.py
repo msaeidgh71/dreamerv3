@@ -16,6 +16,264 @@ import portal
 import ruamel.yaml as yaml
 
 
+
+
+from importlib import reload
+import embodied.core.driver as driver
+import embodied.envs.crafter as crafter
+reload(driver)
+
+
+player_idx = 13
+
+vitals = ["health","food","drink","energy",]
+
+rot = np.array([[0,-1],[1,0]])
+directions = ['front', 'right', 'back', 'left']
+
+
+
+from crafter.env import Env
+
+id_to_item = [0]*19
+import itertools
+dummyenv = Env()
+for name, ind in itertools.chain(dummyenv._world._mat_ids.items(), dummyenv._sem_view._obj_ids.items()):
+    name = str(name)[str(name).find('objects.')+len('objects.'):-2].lower() if 'objects.' in str(name) else str(name)
+    id_to_item[ind] = name
+player_idx = id_to_item.index('player')
+
+
+
+def rotation_matrix(v1, v2):
+    dot = np.dot(v1,v2)
+    cross = np.cross(v1,v2)
+    rotation_matrix = np.array([[dot, -cross],[cross, dot]])
+    return rotation_matrix
+
+
+
+def describe_loc(ref, P, noFacing=True):
+    desc = []
+    details = []
+    if ref[1] > P[1]:
+        desc.append("north")
+    elif ref[1] < P[1]:
+        desc.append("south")
+    if ref[0] > P[0]:
+        desc.append("west")
+    elif ref[0] < P[0]:
+        desc.append("east")
+
+    if len(desc) == 2:
+        if ref[1] > P[1]:
+            details.append(f"{ref[1] - P[1]} step to the north")
+        elif ref[1] < P[1]:
+            details.append(f"{P[1] - ref[1]} step to the south")
+        if ref[0] > P[0]:
+            details.append(f"{ref[0] - P[0]} step to the west")
+        elif ref[0] < P[0]:
+            details.append(f"{P[0] - ref[0]} step to the east")
+        pass
+        
+    elif len(desc) == 1:
+        if ref[1] > P[1]:
+            details.append(f"{ref[1] - P[1]} step to the north")
+        elif ref[1] < P[1]:
+            details.append(f"{P[1] - ref[1]} step to the south")
+        if ref[0] > P[0]:
+            details.append(f"{ref[0] - P[0]} step to the west")
+        elif ref[0] < P[0]:
+            details.append(f"{P[0] - ref[0]} step to the east")
+        pass
+    tmp = "-".join(desc)
+    tmp2 = " and ".join(details)
+    if noFacing == False:
+        if "north" in tmp2:
+            return "north"
+        if "south" in tmp2:
+            return "south"
+        if "west" in tmp2:
+            return "west"
+        if "east" in tmp2:
+            return "east"
+        pass
+    return tmp2
+
+
+def describe_inventory(info):
+    result = ""
+    status_str = "Your status:\n{}".format("\n".join(["- {}: {}/9".format(v, info['inventory'][v]) for v in vitals]))
+    result += status_str + "\n\n"
+    inventory_str = "\n".join(["- {}: {}".format(i, num) for i,num in info['inventory'].items() if i not in vitals and num!=0])
+    inventory_str = "Your inventory:\n{}".format(inventory_str) if inventory_str else "You have nothing in your inventory."
+    result += inventory_str #+ "\n\n"
+    return result.strip()
+
+
+
+def rotation_matrix(v1, v2):
+    dot = np.dot(v1,v2)
+    cross = np.cross(v1,v2)
+    rotation_matrix = np.array([[dot, -cross],[cross, dot]])
+    return rotation_matrix
+
+def describe_loc(ref, P, noFacing=True):
+    desc = []
+    details = []
+    if ref[1] > P[1]:
+        desc.append("north")
+    elif ref[1] < P[1]:
+        desc.append("south")
+    if ref[0] > P[0]:
+        desc.append("west")
+    elif ref[0] < P[0]:
+        desc.append("east")
+
+    if len(desc) == 2:
+        if ref[1] > P[1]:
+            details.append(f"{ref[1] - P[1]} step to the north")
+        elif ref[1] < P[1]:
+            details.append(f"{P[1] - ref[1]} step to the south")
+        if ref[0] > P[0]:
+            details.append(f"{ref[0] - P[0]} step to the west")
+        elif ref[0] < P[0]:
+            details.append(f"{P[0] - ref[0]} step to the east")
+        pass
+        
+    elif len(desc) == 1:
+        if ref[1] > P[1]:
+            details.append(f"{ref[1] - P[1]} step to the north")
+        elif ref[1] < P[1]:
+            details.append(f"{P[1] - ref[1]} step to the south")
+        if ref[0] > P[0]:
+            details.append(f"{ref[0] - P[0]} step to the west")
+        elif ref[0] < P[0]:
+            details.append(f"{P[0] - ref[0]} step to the east")
+        pass
+
+    
+    tmp = "-".join(desc)
+    tmp2 = " and ".join(details)
+
+    if noFacing == False:
+        if "north" in tmp2:
+            return "north"
+        if "south" in tmp2:
+            return "south"
+        if "west" in tmp2:
+            return "west"
+        if "east" in tmp2:
+            return "east"
+        pass
+    return tmp2
+
+
+def describe_env(info):
+    assert(info['semantic'][info['player_pos'][0],info['player_pos'][1]] == player_idx)
+    semantic = info['semantic'][info['player_pos'][0]-info['view'][0]//2:info['player_pos'][0]+info['view'][0]//2+1, info['player_pos'][1]-info['view'][1]//2+1:info['player_pos'][1]+info['view'][1]//2]
+    center = np.array([info['view'][0]//2,info['view'][1]//2-1])
+    result = ""
+    x = np.arange(semantic.shape[1])
+    y = np.arange(semantic.shape[0])
+    x1, y1 = np.meshgrid(x,y)
+    loc = np.stack((y1, x1),axis=-1)
+    dist = np.absolute(center-loc).sum(axis=-1)
+    obj_info_list = []
+    
+    facing = info['player_facing']
+    target = (center[0] + facing[0], center[1] + facing[1])
+    target = id_to_item[semantic[target]]
+    obs = "You face {} at your front. your facing is: {}".format(target, describe_loc(np.array([0,0]),facing, False))
+    
+
+    #print(loc)
+
+    for idx in np.unique(semantic):
+        if idx==player_idx:
+            continue
+
+        smallest = np.unravel_index(np.argmin(np.where(semantic==idx, dist, np.inf)), semantic.shape)
+        obj_info_list.append((id_to_item[idx], dist[smallest], describe_loc(np.array([0,0]), smallest-center) ) )
+
+    if len(obj_info_list)>0:
+        status_str = "You see:\n{}".format("\n".join(["- {} {}".format(name, loc) for name, dist, loc in obj_info_list]))
+    else:
+        status_str = "You see nothing away from you."
+    result += status_str + "\n\n"
+    result += obs.strip()
+    
+    return result.strip()
+
+
+def describe_act(info):
+    result = ""
+    
+    action_str = info['action'].replace('do_', 'interact_')
+    action_str = action_str.replace('move_up', 'move_north')
+    action_str = action_str.replace('move_down', 'move_south')
+    action_str = action_str.replace('move_left', 'move_west')
+    action_str = action_str.replace('move_right', 'move_east')
+    
+    act = "You took action {}.".format(action_str) 
+    result+= act
+    
+    return result.strip()
+
+
+def describe_status(info):
+    if info['sleeping']:
+        return "You are sleeping, and will not be able take actions until energy is full.\n\n"
+    elif info['dead']:
+        return "You died.\n\n"
+    else:
+        return ""
+
+    
+def describe_frame(info, action):
+    try:
+        result = ""
+        
+        if action is not None:
+            result+=describe_act(info)
+        result+=describe_status(info)
+        result+="\n\n"
+        result+=describe_env(info)
+        result+="\n\n"
+        result+=describe_inventory(info)
+        
+        return result.strip()
+    except Exception as e:
+        print(e)
+        return "Error, you are out of the map."
+
+
+
+def info_callback(args):
+  print(args)
+  description = describe_frame(args,None)
+  print(description)
+  print("wooow")
+  #assert 1==3
+
+
+def printTest(args):
+  print(args)
+  if '_probs' in args:
+    del args['_probs']
+  if '_mobs' in args:
+    del args['_mobs']
+  print("print test =>>>>>>>>>>>>>>>>>>>>>>>>>>>")
+  return args
+print(
+    driver.Driver.set_callback(printTest)
+)
+print(crafter.Crafter.set_info_func(info_callback))
+
+
+
+
+
 def main(argv=None):
   from .agent import Agent
   [elements.print(line) for line in Agent.banner]
