@@ -43,6 +43,14 @@ class Crafter(embodied.Env):
         'reset': elements.Space(bool),
     }
 
+  # MODIFICATION START: Add this property to expose the action names.
+  @property
+  def discrete_action_names(self):
+    # The action space in this env is named 'action', and the names are
+    # available in the crafter library's constants.
+    return {'action': crafter.constants.actions}
+  # MODIFICATION END
+
   def step(self, action):
     if action['reset'] or self._done:
       self._episode += 1
