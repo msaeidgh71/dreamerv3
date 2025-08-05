@@ -85,6 +85,7 @@ class Driver:
     
     # MODIFICATION START: detailed printing logic.
     prob_keys = [k for k in outs if k.endswith('_probs')]
+    probs_list = []
     if prob_keys:
         print("\n--- Model Action Probabilities ---")
         for key in prob_keys:
@@ -98,18 +99,23 @@ class Driver:
             print(f"  Action '{action_name}':")
             for i in range(num_envs):
                 # Pair names with probabilities and format them.
+                probs_list = [(name, prob) for name, prob in zip(names, probabilities_np[i])]
                 named_probs = [f"{name}:{prob:.2f}" for name, prob in zip(names, probabilities_np[i])]
                 print(f"    Env {i}: {{{', '.join(named_probs)}}}")
         print("--------------------------------\n")
     # MODIFICATION END
-    
+
     assert all(k not in acts for k in outs), (
         list(outs.keys()), list(acts.keys()))
     if obs['is_last'].any():
       mask = ~obs['is_last']
       acts = {k: self._mask(v, mask) for k, v in acts.items()}
+    print("000000=>>>")
+    print(probs_list)
+    print("0000000=>>>")
     self.acts = {**acts, 'reset': obs['is_last'].copy()
-    ,'_probs':prob_keys,
+    ,'_probs':probs_list,
+    #prob_keys,
     '_mobs':obs
     }
     trans = {**obs, **acts, **outs, **logs}
