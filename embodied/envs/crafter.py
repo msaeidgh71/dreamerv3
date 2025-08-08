@@ -19,9 +19,12 @@ class Crafter(embodied.Env):
     self._reward = None
     self._achievements = crafter.constants.achievements.copy()
     self._done = True
-
+  
+  
+  @staticmethod
   def set_info_func(args):
     Crafter.info_callback = args
+    return "callback from crafter";
   @property
   def obs_space(self):
     spaces = {
