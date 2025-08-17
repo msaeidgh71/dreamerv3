@@ -110,9 +110,6 @@ class Driver:
     if obs['is_last'].any():
       mask = ~obs['is_last']
       acts = {k: self._mask(v, mask) for k, v in acts.items()}
-    print("000000=>>>")
-    print(probs_list)
-    print("0000000=>>>")
     self.acts = {**acts, 'reset': obs['is_last'].copy()
     ,'_probs':probs_list,
     #prob_keys,
