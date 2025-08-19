@@ -71,13 +71,11 @@ class Driver:
     assert all(isinstance(v, np.ndarray) for v in acts.values())
     acts = [{k: v[i] for k, v in acts.items()} for i in range(self.length)]
     
-    _image = None
     if self.parallel:
       [pipe.send(('step', act)) for pipe, act in zip(self.pipes, acts)]
       obs = [self._receive(pipe) for pipe in self.pipes]
     else:
       obs = [env.step(act) for env, act in zip(self.envs, acts)]
-      _image = [env.render((256, 256)) for env, act in zip(self.envs, acts)]
     obs = {k: np.stack([x[k] for x in obs]) for k in obs[0].keys()}
     logs = {k: v for k, v in obs.items() if k.startswith('log/')}
     obs = {k: v for k, v in obs.items() if not k.startswith('log/')}
@@ -113,7 +111,6 @@ class Driver:
       acts = {k: self._mask(v, mask) for k, v in acts.items()}
     self.acts = {**acts, 'reset': obs['is_last'].copy()
     ,'_probs':probs_list,
-    '_image': _image,
     #prob_keys,
     '_mobs':obs
     }
